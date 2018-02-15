@@ -1,0 +1,106 @@
+
+
+
+RFC7748:  https://tools.ietf.org/html/rfc7748
+
+
+Due: Monday February 19, 23h55
+
+The second assignment for this course is based on Montgomery's elliptic curve arithmetic.  You have two tasks, both of which will make use of a common core of Montgomery-curve operations:
+
+    Implement X25519 key exchange, in accordance with RFC7748
+    Implement and use Lenstra's ECM integer factorization method
+
+Montgomery arithmetic
+
+You will need to implement the Montgomery ladder for (X,Z)-coordinates on the elliptic curve BY^2Z = X(X^2 + AXZ + Z^2), for given values of A (B is irrelevant for (X,Z)-arithmetic). 
+
+You should have a function ladder(N,A,m,(X,Z)) (though the exact interface isn't crucial here), with input
+
+    N denotes the modulus for arithmetic.  For ECM, N is the integer to be factored; for X25519, N will always be the prime p = 2^{255}-19.
+    A is the constant determining the elliptic curve arithmetic.  For ECM, A will vary; for X25519, A will always be 486662.
+    m is the integer defining the scalar multiple to be computed
+    X and Z are integers modulo N, defining a projective point (X:*:Z) on the elliptic curve (here * denotes an irrelevant Y-coordinate)
+
+The function will return
+
+    (X_m,Z_m), a pair of integers modulo N, such that (X_m:*:Z_m) = [m](X:*:Z) on the curve (here * denotes irrelevant Y-coordinates).
+
+Since your function will be used within X25519 key exchange, it is essential that there be no branching (if statements, etc) on m (or bits of m).
+
+X25519 key exchange
+
+You will need to define a function X25519(m,x) implementing half of one side of an X25519 key exchange (for a complete key exchange, each party calls X25519 twice).
+
+    m is a string of 32 bytes, which will be interpreted (after the processing described in RFC7748) as an integer.
+    x is a string of 32 bytes, which will be interpreted (after the processing described iin RFC7748) as an integer modulo p = 2^{255}-19.
+    X25519 returns a string of 32 bytes. 
+    If G is the public "base point", then X25519(a,G) computes the ephemeral public key corresponding to the secret a.
+    If A is a public key (corresponding to a secret a), received by a user with secret b, then X25519(b,A) computes the shared secret.
+
+ECM integer factorization
+
+For the second task, you will need to implement "stage 1" of Lenstra's ECM factorization method, using your Montgomery ladder function as a subroutine. You will be given a series of challenge numbers to try and factor. The goal is to print out a list of prime powers that are factors of a given number.
+
+You will need to define several functions (most of which are quite short):
+
+    gcd(a,b), which uses the Euclidean algorithm to compute the GCD of a and b
+    trial_division(N), which finds any prime factors of N less than 10000 (there are 1229 such primes; you can compute them using the sieve of Eratosthenes, and even hard-code them into your algorithm if you want)
+    is_probable_prime(m,ntrials), which returns true if and only if the integer m passes ntrials iterations of the Miller-Rabin primality test (this will require a modular exponentiation algorithm, like Python's three-argument pow(x,e,n))
+    factorization(N), which prints out as many prime factors of  N (with their exponents) as possible.  factorization will call trial_division first, to find any easy (tiny) factors, before making a number of calls to ECMTrial.
+
+The function ECMTrial(N,A,bound) should
+
+    Generate integers X and Z modulo N such that (X:*:Z) is a projective point on an elliptic curve BY^2Z = X(X^2 + AXZ + Z^2) over Z/NZ, using the given A (the y-coordinate * is irrelevant, as is the curve parameter B);
+    Compute (X_m,Z_m) such that (X_m:*:Z_m) = [m](X:*:Z) where m is the product of all prime powers less than bound; and
+    Return gcd(Z_m,N).
+
+It's up to you to decide how many calls to ECMTrial you make for a given N, and how large the bound parameter should be (and also when to make bound larger!).
+
+What to submit: your source code, plus a text file containing, for each number that you can factor
+
+
+    The factors you found;
+    The A-parameter of the curve that found the factor
+    the (X:Z) coordinates of the base point that you used to find the factor
+    The smoothness bound B that you used to find the factor
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Tests for basic Montgomery arithmetic and the Montgomery ladder
+
+Check the following equalities *on the level of (X,Z)-coordinates*.
+
+This means you should ignore the Y-coordinates!
+
+# First curve:
+prime: p = 101
+curve constant: A = 49 in GF(p) (so (A+2)/4 = 38 mod 101)
+
+curve: E: Y^2*Z = X*(X^2 + A*X*Z + Z^2) 
+base point: P = (X:Y:Z) = (2:2:1)
+
+## check these (on (X,Z)-coordinates only):
+[2]P = (70:81:1)
+[3]P = (59:61:1)
+[77]P = (8:90:1)
+
+
+# Second curve:
+prime: p = 1009
+curve constant: A = 682 in GF(p) (so (A+2)/4 = 171 mod 1009)
+
+curve: E: Y^2*Z = X*(X^2 + A*X*Z + Z^2)
+base point: P = (X:Y:Z) = (7:207:1)
+
+## check these (on (X,Z)-coordinates only):
+[2]P = (284:3:1)
+[3]P = (759:824:1)
+[5]P = (1000:308:1)
+[34]P = (286:675:1)
+[104]P = (810:312:1)
+[947]P = (755:481:1)
+
+
+
+

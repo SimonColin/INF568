@@ -1,0 +1,14 @@
+let n = 24
+let a = 0
+let x = 320
+let z = 1000
+
+let q = (x + z) * (x + z)
+let r = (x - z) * (x - z)
+let s = q - r
+
+let xm = q * r
+let zm = s * (r + (a + 2) * s / 4)
+
+let _ = print_int xm in
+    print_int zm
