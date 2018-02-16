@@ -1,8 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "gmp.h"
-
+#include "/usr/local/lib/libgmp.a"
 int size = 32 / sizeof(const long unsigned int);
 
 //mpn_cnd_add_n ...
@@ -185,6 +184,62 @@ void xDBL(mpz_t N, mpz_t A, mpz_t X, mpz_t Z, mpz_t Xm, mpz_t Zm)
 	mpz_clears(Q, R, S, x, y, NULL);
 }
 
+void xADD(mpz_t N, mpz_t A, mpz_t Xp, mpz_t Zp, mpz_t Xq, mpz_t Zq, mpz_t Xm, mpz_t Zm)
+{
+	//Z_- * (u + v)²
+	//x_- * (u - v)²
+	//u = (xp - zp)(xq + zq)
+	//v = (xp + zp)(xq - zq)
+	mpz_t U, V, Xminus, Zminus, tmp1, tmp2;
+	const mp_limb_t *limbs_Xp, *limbs_Zp, *limbs_Xq, *limbs_Zq, *limbs_A, *limbs_N;
+	mp_limb_t *limbs_U, *limbs_V, *limbs_Xminus, *limbs_Zminus, *limbs_Xm, *limbs_Zm, *limbs_tmp1, *limbs_tmp2;
+	
+	mpz_inits(U, V, Xminus, Zminus, tmp1, tmp2, NULL);
+	
+	limbs_Xp = mpz_limbs_read(Xp);
+	limbs_Zp = mpz_limbs_read(Zp);
+	limbs_Xq = mpz_limbs_read(Xq);
+	limbs_Zq = mpz_limbs_read(Zq);
+	limbs_A = mpz_limbs_read(A);
+	limbs_N = mpz_limbs_read(N);
+	limbs_U = mpz_limbs_write(U, size * 2);
+	limbs_V = mpz_limbs_write(V, size * 2);
+	limbs_Xminus = mpz_limbs_write(Xminus, size * 2);
+	limbs_Zminus = mpz_limbs_write(Zminus, size * 2);
+	limbs_Xm = mpz_limbs_write(Xm, size * 2);
+	limbs_Zm = mpz_limbs_write(Zm, size * 2);
+	
+	limbs_tmp1 = mpz_limbs_write(tmp1, size + 1);
+	mpn_sub_n(limbs_tmp1, limbs_Xp, limbs_Zp, size + 1);
+	mpz_limbs_finish(tmp1, size + 1);
+	
+	limbs_tmp2 = mpz_limbs_write(tmp2, size + 1);
+	mpn_add_n(limbs_tmp2, limbs_Xq, limbs_Zq, size + 1);
+	mpz_limbs_finish(tmp2, size + 1);
+	
+	sec_mul(tmp1, tmp2, U);
+	sec_div_r(U, N, size);
+	
+	mpz_set(Xm, U);
+	
+	//v = (xp + zp)(xq - zq)
+	
+	limbs_tmp1 = mpz_limbs_write(tmp1, size + 1);
+	mpn_add_n(limbs_tmp1, limbs_Xp, limbs_Zp, size + 1);
+	mpz_limbs_finish(tmp1, size + 1);
+	
+	limbs_tmp2 = mpz_limbs_write(tmp2, size + 1);
+	mpn_sub_n(limbs_tmp2, limbs_Xq, limbs_Zq, size + 1);
+	mpz_limbs_finish(tmp2, size + 1);
+	
+	sec_mul(V, tmp1, tmp2);
+	sec_div_r(V, N, size);
+	
+	mpz_set(Zm, V);
+	
+	mpz_clears(U, V, Xminus, Zminus, tmp1, tmp2, NULL);
+}
+
 void ladder(mpz_t N, mpz_t A, mpz_t m, mpz_t X, mpz_t Z, mpz_t Xm, mpz_t Zm)
 {
 	
@@ -192,8 +247,8 @@ void ladder(mpz_t N, mpz_t A, mpz_t m, mpz_t X, mpz_t Z, mpz_t Xm, mpz_t Zm)
 
 int main()
 {
-	mpz_t n, a, x, z, xm, zm;
-	mpz_inits(n, a, x, z, xm, zm, NULL);
+	mpz_t n, a, x1, z1, x2, z2, xm, zm;
+	mpz_inits(n, a, x1, z1, x2, z2, xm, zm, NULL);
 	
 //	printf(".");
 //	printf(".");
@@ -206,11 +261,15 @@ int main()
 	mpz_set_ui(n, 243);
 	size = mpz_size(n);
 	mpz_realloc(a, size);
-	mpz_realloc(x, size);
-	mpz_realloc(z, size);
+	mpz_realloc(x1, size);
+	mpz_realloc(z1, size);
+	mpz_realloc(x2, size);
+	mpz_realloc(z2, size);
 	mpz_set_ui(a, 6);
-	mpz_set_ui(x, 7);
-	mpz_set_ui(z, 15);
+	mpz_set_ui(x1, 7);
+	mpz_set_ui(z1, 15);
+	mpz_set_ui(x2, 3);
+	mpz_set_ui(z2, 4);
 	
 	mpz_add_ui(a, a, 2);
 	
@@ -222,13 +281,14 @@ int main()
 /*	gmp_printf("%Zd, %Zd, %Zd, %Zd\n", n, a, x, z);
 	sec_div_q(n, a, size);
 	gmp_printf("%Zd, %Zd, %Zd, %Zd\n", n, a, x, z);
-*/	xDBL(n, a, x, z, xm, zm);
+*///	xDBL(n, a, x, z, xm, zm);
 	
-//	printf(".");
+	xADD(n, a, x1, z1, x2, z2, xm, zm);
 	
-	gmp_printf("dbl = (%Zd, %Zd)\n", xm, zm);
+	gmp_printf("U = %Zd\nV = %Zd\n", xm, zm);
+//	gmp_printf("dbl = (%Zd, %Zd)\n", xm, zm);
 	
-	mpz_clears(n, a, x, z, xm, zm, NULL);
+	mpz_clears(n, a, x1, z1, x2, z2, xm, zm, NULL);
 	
 	return 0;
 }
