@@ -1,7 +1,7 @@
-let n = 243
-let a = 6
-let x = 7
-let z = 15
+let n = 101
+let a = 38
+let x = 2
+let z = 1
 
 let q = ((x + z) * (x + z)) mod n
 let r = ((x - z) * (x - z)) mod n
