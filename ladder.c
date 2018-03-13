@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "/usr/local/lib/libgmp.a"
+#include "gmp.h"
+
 int size = 32 / sizeof(const long unsigned int);
 
 //mpn_cnd_add_n ...
