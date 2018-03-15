@@ -3,3 +3,6 @@ lamport: keccak
 
 keccak :
 	gcc -c keccak.c
+	
+winternitz : keccak
+	gcc keccak.o winternitz.c

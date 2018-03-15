@@ -1,258 +1,123 @@
 ﻿#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
 
 #include "gmp.h"
 
 int size = 32 / sizeof(const long unsigned int);
 
-//mpn_cnd_add_n ...
-
-void sec_div_r(mpz_t a, mpz_t b, int size_b)
-{
-	mpz_t a2;
-	const mp_limb_t* limbs_b, *limbs_a2;
-	mp_limb_t* limbs_a;
-	mp_limb_t* scratch;
-	int size_a = mpz_size(a);
-	mpz_init(a2);
-	mpz_set(a2, b);
-	mpz_realloc(a2, size_a + 1);
-	limbs_b = mpz_limbs_read(b);
-	limbs_a = mpz_limbs_modify(a, size_a + 1);
-	limbs_a2 = mpz_limbs_read(a2);
-	mpn_add_n(limbs_a, limbs_a2, limbs_b, size_a + 1);
-	mpz_limbs_finish(a, size_a + 1);
-	scratch = malloc(mpn_sec_div_r_itch(size_a + 1, size_b) * sizeof(mp_limb_t));
-	mpn_sec_div_r(limbs_a, size_a + 1, limbs_b, size_b, scratch);
-	mpz_limbs_finish(a, size_b);
-	free(scratch); 
-	mpz_clear(a2);
-}
-
-void sec_div_q(mpz_t a, mpz_t b, int size_b)
-{
-	mpz_t r;
-	mpz_init(r);
-	const mp_limb_t* limbs_b;
-	mp_limb_t* limbs_a;
-	mp_limb_t* scratch;
-	mp_limb_t* limbs_r;
-	mp_limb_t tmp;
-	int size_a = mpz_size(a);
-	limbs_b = mpz_limbs_read(b);
-	limbs_a = mpz_limbs_modify(a, size_a);
-	limbs_r = mpz_limbs_write(r, size_a);
-	scratch = malloc(mpn_sec_div_qr_itch(size_a, size_b) * sizeof(mp_limb_t));
-	tmp = mpn_sec_div_qr(limbs_a, limbs_r, size_a, limbs_b, size_b, scratch);
-	mpz_limbs_finish(a, size_a - size_b);
-	free(scratch);
-	mpz_clear(r);
-}
-
-void sec_sqr(mpz_t a)
-{
-	mp_limb_t* limbs_a;
-	mp_limb_t* scratch;
-	const mp_limb_t* tmp;
-	int size_a;
-	size_a = mpz_size(a);
-	limbs_a = mpz_limbs_modify(a, size_a * 2);
-	tmp = mpz_limbs_read(a);
-	scratch = malloc(mpn_sec_sqr_itch(size_a) * sizeof(mp_limb_t));
-	mpn_sec_sqr(limbs_a, tmp, size_a, scratch);
-	mpz_limbs_finish(a, size_a * 2);
-	free(scratch);
-}
-
-void sec_mul(mpz_t a, mpz_t b, mpz_t res, int size_ops)
-{
-	const mp_limb_t *limbs_a, *limbs_b;
-	mp_limb_t *limbs_res, *scratch;
-	int size_a, size_b;
-	mpz_realloc(a, size_ops);
-	mpz_realloc(b, size_ops);
-//	size_a = mpz_size(a);
-//	size_b = mpz_size(b);
-	limbs_a = mpz_limbs_read(a);
-	limbs_b = mpz_limbs_read(b);
-	limbs_res = mpz_limbs_write(res, size_ops * 2);
-	scratch = malloc(mpn_sec_mul_itch(size_ops, size_ops) * sizeof(mp_limb_t));
-	mpn_sec_mul(limbs_res, limbs_a, size_ops, limbs_b, size_ops, scratch);
-	mpz_limbs_finish(res, size_ops * 2);
-}
-
-void sec_sub_mod(mpz_t a, mpz_t b, mpz_t res, mpz_t n)
-{
-	mpz_t tmp1, tmp2;
-	const mp_limb_t *limbs_a, *limbs_b, *limbs_n;
-	mp_limb_t *limbs_res, *limbs_tmp1, *limbs_tmp2, *scratch;
-	int sizea;
-	mpz_inits(tmp1, tmp2, NULL);
-	sizea = mpz_size(a);
-	limbs_a = mpz_limbs_read(a);
-	limbs_b = mpz_limbs_read(b);
-	limbs_n = mpz_limbs_read(n);
-	limbs_res = mpz_limbs_write(res, sizea);
-	mpz_limbs_finish(res, size);
-	limbs_tmp1 = mpz_limbs_write(tmp1, sizea);
-	limbs_tmp2 = mpz_limbs_write(tmp2, sizea);
-	mpn_sub_n(limbs_res, limbs_a, limbs_b, sizea);
-	mpz_limbs_finish(res, sizea);
-	mpn_sub_n(limbs_tmp1, limbs_a, limbs_b, sizea);
-	mpn_add_n(limbs_tmp2, limbs_tmp1, limbs_n, sizea);
-	mpn_cnd_swap(mpz_cmp(a, b) < 0, limbs_res, limbs_tmp2, size);
-	mpz_limbs_finish(res, size);
-	mpz_clears(tmp1, tmp2, NULL);
-}
-
 void xDBL(mpz_t N, mpz_t A, mpz_t X, mpz_t Z, mpz_t Xm, mpz_t Zm)
 {
 	mpz_t Q, R, S, x, y;
-	const mp_limb_t* tmp;
-	mp_limb_t* scratch, *limbs_x, *limbs_y, *op1, *op2;
 	mpz_inits(Q, R, S, x, y, NULL);
 	
-	const mp_limb_t* limbs_X = mpz_limbs_read(X);
-	const mp_limb_t* limbs_Z = mpz_limbs_read(Z);
-	const mp_limb_t* limbs_A = mpz_limbs_read(A);
-	const mp_limb_t* limbs_N = mpz_limbs_read(N);
-	mp_limb_t* limbs_Q = mpz_limbs_write(Q, size * 2);
-	mp_limb_t* limbs_R = mpz_limbs_write(R, size * 2);
-	mp_limb_t* limbs_S = mpz_limbs_write(S, size * 2);
-	mp_limb_t* limbs_Xm = mpz_limbs_write(Xm, size * 2);
-	mp_limb_t* limbs_Zm = mpz_limbs_write(Zm, size * 2);
+	mpz_add(Q, X, Z);
+	mpz_mod(Q, Q, N);
+	mpz_mul(Q, Q, Q);
+	mpz_mod(Q, Q, N);
 	
+	mpz_sub(R, X, Z);
+	mpz_mod(R, R, N);
 	
+	mpz_sub(S, Q, R);
+	mpz_mod(S, S, N);
 	
-	mpn_add_n(limbs_Q, limbs_X, limbs_Z, size + 1);
-	mpz_limbs_finish(Q, size + 1);
-	sec_div_r(Q, N, size);
-	sec_sqr(Q);
-	sec_div_r(Q, N, size);
+	mpz_mul(Xm, Q, R);
+	mpz_mod(Xm, Xm, N);
 	
-	
-	sec_sub_mod(X, Z, R, N);
-	
-	
-	
-	mpn_sub_n(limbs_S, limbs_Q, limbs_R, size);
-	mpz_limbs_finish(S, size + 1);
-	sec_div_r(S, N, size);
-	
-	
-	
-	sec_mul(Q, R, Xm, size);
-	sec_div_r(Xm, N, size);
-	
-	
-	
-	sec_mul(S, A, x, size);
-	sec_div_r(x, N, size);
-	limbs_y = mpz_limbs_write(y, size);
-	limbs_x = mpz_limbs_read(x);
-	limbs_R = mpz_limbs_read(R);
-	mpn_add_n(limbs_y, limbs_x, limbs_R, size);
-	mpz_limbs_finish(y, size);
-	sec_mul(y, S, Zm, size);
-	sec_div_r(Zm, N, size);
-	
-	
+	mpz_mul(x, S, A);
+	mpz_mod(x, x, N);
+	mpz_add(x, x, R);
+	mpz_mul(Zm, S, x);
+	mpz_mod(Zm, Zm, N);
 	mpz_clears(Q, R, S, x, y, NULL);
 }
 
 void xADD(mpz_t N, mpz_t A, mpz_t Xp, mpz_t Zp, mpz_t Xq, mpz_t Zq, mpz_t Xminus, mpz_t Zminus, mpz_t Xm, mpz_t Zm)
 {
 	mpz_t U, V, tmp1, tmp2;
-	const mp_limb_t *limbs_Xp, *limbs_Xminus, *limbs_Zminus, *limbs_Zp, *limbs_Xq, *limbs_Zq, *limbs_A, *limbs_N;
-	mp_limb_t *limbs_U, *limbs_V, *limbs_Xm, *limbs_Zm, *limbs_tmp1, *limbs_tmp2;
 	
-	printf(".");
 	mpz_inits(U, V, tmp1, tmp2, NULL);
-	limbs_Xp = mpz_limbs_read(Xp);
-	limbs_Zp = mpz_limbs_read(Zp);
-	limbs_Xq = mpz_limbs_read(Xq);
-	limbs_Zq = mpz_limbs_read(Zq);
-	limbs_A = mpz_limbs_read(A);
-	limbs_N = mpz_limbs_read(N);
-	limbs_U = mpz_limbs_write(U, size * 2);
-	limbs_V = mpz_limbs_write(V, size * 2);
-	limbs_Xminus = mpz_limbs_write(Xminus, size * 2);
-	limbs_Zminus = mpz_limbs_write(Zminus, size * 2);
-	limbs_Xm = mpz_limbs_write(Xm, size * 2);
-	limbs_Zm = mpz_limbs_write(Zm, size * 2);
-	
-	printf(".");
-	
-	sec_sub_mod(Xp, Zp, tmp1, N);
-//	mpz_realloc(tmp1, size + 1);
-	printf(".");
 	
 	
+	mpz_sub(tmp1, Xp, Zp);
+	mpz_mod(tmp1, tmp1, N);
 	
-	limbs_tmp2 = mpz_limbs_write(tmp2, size + 1);
-	mpn_add_n(limbs_tmp2, limbs_Xq, limbs_Zq, size + 1);
-	mpz_limbs_finish(tmp2, size + 1);
-	printf(".");
+	mpz_add(tmp2, Xq, Zq);
+	mpz_mod(tmp2, tmp2, N);
 	
+	mpz_mul(U, tmp1, tmp2);
+	mpz_mod(U, U, N);
 	
+	mpz_add(tmp1, Xp, Zp);
+	mpz_mod(tmp1, tmp1, N);
 	
-	sec_mul(tmp1, tmp2, U, size + 1);
-	sec_div_r(U, N, size);
-	printf(".");
+	mpz_sub(tmp2, Xq, Zq);
+	mpz_mod(tmp2, tmp2, N);
 	
+	mpz_mul(V, tmp1, tmp2);
+	mpz_mod(V, V, N);
 	
+	mpz_sub(tmp1, U, V);
+	mpz_mod(tmp1, tmp1, N);
 	
+	mpz_mul(tmp1, tmp1, tmp1);
+	mpz_mod(tmp1, tmp1, N);
 	
+	mpz_mul(Xm, Zminus, tmp1);
+	mpz_mod(Xm, Xm, N);
 	
-	limbs_tmp1 = mpz_limbs_write(tmp1, size + 1);
-	mpn_add_n(limbs_tmp1, limbs_Xp, limbs_Zp, size + 1);
-	mpz_limbs_finish(tmp1, size + 1);
-	printf(".");
-	
-	sec_sub_mod(Xq, Zq, tmp2, N);
-	sec_mul(tmp1, tmp2, V, size);
-	sec_div_r(V, N, size);
-	printf(".");
-	
-
-
-	sec_sub_mod(U, V, tmp1, N);
-	printf(".");
-	
-	sec_sqr(tmp1);
-	sec_div_r(tmp1, N, size);
-	printf(".");
-	
-	
-	
-	sec_mul(Zminus, tmp1, Xm, size);
-	sec_div_r(Xm, N, size);
-	printf(".");
-
-
-	
-	limbs_tmp1 = mpz_limbs_write(tmp1, size + 1);
-	limbs_U = mpz_limbs_read(U);
-	limbs_V = mpz_limbs_read(V);
-	mpn_add_n(limbs_tmp1, limbs_U, limbs_V, size + 1);
-	mpz_limbs_finish(tmp1, size + 1);
-	printf(".");
-	
-	
-	
-	sec_sqr(tmp1);
-	sec_div_r(tmp1, N, size);
-	sec_mul(tmp1, Xminus, Zm, size);
-	sec_div_r(Zm, N, size);
-	printf(".");
-	
+	mpz_add(tmp1, U, V);
+	mpz_mul(tmp1, tmp1, tmp1);
+	mpz_mod(tmp1, tmp1, N);
+	mpz_mul(Zm, tmp1, Xminus);
+	mpz_mod(Zm, Zm, N);
 	
 	
 	mpz_clears(U, V, tmp1, tmp2, NULL);
 }
 
+void invert(mpz_t x, mpz_t z, mpz_t n)
+{
+	mpz_t inv, z2, two;
+	mp_limb_t *limbs_x, *limbs_z, *limbs_inv, *scratch;
+	const mp_limb_t *limbs_n, *limbs_two;
+	mpz_inits(inv, z2, two, NULL);
+	
+	mpz_sub_ui(two, n, 2);
+	mpz_set(z2, z);
+	limbs_n = mpz_limbs_read(n);
+	limbs_two = mpz_limbs_read(two);
+	limbs_z = mpz_limbs_modify(z2, size);
+	limbs_inv = mpz_limbs_write(inv, size);
+	mpz_limbs_finish(inv, size);
+	scratch = malloc(mpn_sec_invert_itch(size) * sizeof(mp_limb_t));
+	mpn_sec_invert(limbs_inv, limbs_z, limbs_n, size, 2 * size * GMP_NUMB_BITS, scratch);
+	mpz_mul(x, x, inv);
+	mpz_mod(x, x, n);
+	mpz_mul(z, z, inv);
+	mpz_mod(z, z, n);
+	
+	free(scratch);
+	mpz_clears(inv, z2, two, NULL);
+}
+
 int mod2(mpz_t m)
 {
+	mp_limb_t out, one;
+	mp_limb_t *limbs_read, *limbs_write;
+	
+	one = 1;
+	limbs_write = mpz_limbs_modify(m, size);
+	
+	mpn_and_n(&out, &one, limbs_write, 1);
+	
+	mpn_rshift(limbs_write, limbs_write, size, 1);
+	mpz_limbs_finish(m, size);
+	
+	return out;/*
 	mp_limb_t out, one;
 	mp_limb_t *limbs_read, *limbs_write;
 	
@@ -264,77 +129,10 @@ int mod2(mpz_t m)
 	mpn_lshift(limbs_write, limbs_write, size, 1);
 	mpz_limbs_finish(m, size);
 	
-	return out;
+	return (out >> (sizeof(int) * 8));*/
 }
 
-void ladder(mpz_t N, mpz_t A, mpz_t m, mpz_t X, mpz_t Z, mpz_t Xm, mpz_t Zm)
-{
-	int i, n;
-	mpz_t X0, Z0, X1, Z1, Xu, Zu, xtmp1, xtmp2, ztmp1, ztmp2, xtmp3, ztmp3;
-	mp_limb_t *limbs_tmp1, *limbs_tmp2, *limbs_tmp3;
-	mpz_inits(X0, Z0, X1, Z1, Xu, Zu, xtmp1, xtmp2, ztmp1, ztmp2, xtmp3, ztmp3, NULL);
-	mpz_set(Xu, X);
-	mpz_set_ui(Zu, 1);
-	mpz_set_ui(X0, 1);
-	mpz_set_ui(Z0, 0);
-	mpz_set(X1, Xu);
-	mpz_set(Z1, Zu);
-	
-	mpz_realloc(xtmp1, size);
-	mpz_realloc(ztmp1, size);
-	mpz_realloc(xtmp2, size);
-	mpz_realloc(ztmp2, size);
-	mpz_realloc(xtmp3, size);
-	mpz_realloc(ztmp3, size);
-	mpz_realloc(X0, size);
-	mpz_realloc(Z0, size);
-	mpz_realloc(X1, size);
-	mpz_realloc(Z1, size);
-	mpz_realloc(Xu, size);
-	mpz_realloc(Zu, size);
-	
-	for(i = mpz_size(m) * sizeof(int) - 1; i > 0; i--)
-	{
-		printf("0\n");
-		xDBL(N, A, X0, Z0, xtmp1, ztmp1);
-		printf("1\n");
-		xADD(N, A, X0, Z0, X1, Z1, Xu, Zu, xtmp2, ztmp2);
-		printf("2\n");
-		limbs_tmp1 = mpz_limbs_modify(xtmp1, size);
-		limbs_tmp2 = mpz_limbs_modify(xtmp2, size);
-		n = mod2(m);
-		mpn_cnd_swap(n, limbs_tmp1, limbs_tmp2, size);
-		limbs_tmp1 = mpz_limbs_modify(ztmp1, size);
-		limbs_tmp2 = mpz_limbs_modify(ztmp2, size);
-		mpn_cnd_swap(n, limbs_tmp1, limbs_tmp2, size);
-		
-		xADD(N, A, X0, Z0, X1, Z1, Xu, Zu, xtmp2, ztmp2);
-		xDBL(N, A, X1, Z1, xtmp3, ztmp3);
-		limbs_tmp2 = mpz_limbs_modify(xtmp2, size);
-		limbs_tmp3 = mpz_limbs_modify(xtmp3, size);
-		mpn_cnd_swap(n, limbs_tmp2, limbs_tmp3, size);
-		limbs_tmp2 = mpz_limbs_modify(ztmp2, size);
-		limbs_tmp3 = mpz_limbs_modify(ztmp3, size);
-		mpn_cnd_swap(n, limbs_tmp2, limbs_tmp3, size);
-		printf("3\n");
-		
-		mpz_limbs_finish(xtmp1, size);
-		mpz_limbs_finish(ztmp1, size);
-		mpz_limbs_finish(xtmp2, size);
-		mpz_limbs_finish(ztmp2, size);
-		
-		mpz_set(X0, xtmp1);
-		mpz_set(Z0, ztmp1);
-		mpz_set(X1, xtmp2);
-		mpz_set(Z1, ztmp2);
-	}
-	mpz_set(Xm, X0);
-	mpz_set(Zm, Z0);
-	
-	mpz_clears(X0, Z0, X1, Z1, Xu, Zu, xtmp1, xtmp2, ztmp1, ztmp2, xtmp3, ztmp3, NULL);
-}
-
-void calc_A(mpz_t a, mpz_t n)
+void calc_A(mpz_t out, mpz_t a, mpz_t n)
 {
 	mp_limb_t *limbs_inv, *limbs_tmp, *scratch;
 	const mp_limb_t *limbs_n, *limbs_four, *limbs_a;
@@ -351,58 +149,457 @@ void calc_A(mpz_t a, mpz_t n)
 	mpn_sec_invert(limbs_inv, limbs_four, limbs_n, size, 2 * size * GMP_NUMB_BITS, scratch);
 	mpz_limbs_finish(inv, size);
 	
-	mpz_sub_ui(four, four, 2);
-	limbs_four = mpz_limbs_modify(four, size);
-	
-	mpn_add_n(limbs_tmp, limbs_a, limbs_four, size);
-	mpz_limbs_finish(tmp, size);
-	sec_mul(tmp, inv, a, size);
-	sec_div_r(a, n, size);
-	mpz_limbs_finish(a, size);
-	
+	mpz_add_ui(out, a, 2);
+	mpz_mul(out, out, inv);
+	mpz_mod(out, out, n);
 	free(scratch);
 	mpz_clears(four, inv, tmp, NULL);
 }
 
+void calc_X(mpz_t a, mpz_t z, mpz_t x, mpz_t n)
+{
+	mp_limb_t *limbs_inv, *scratch;
+	const mp_limb_t *limbs_n, *limbs_three;
+	mpz_t three, inv, tmp;
+	mpz_inits(three, inv, tmp, NULL);
+	mpz_set_ui(three, 3);
+	limbs_three = mpz_limbs_read(three);
+	limbs_inv = mpz_limbs_write(inv, size);
+	limbs_n = mpz_limbs_read(n);
+	scratch = malloc(mpn_sec_invert_itch(size) * sizeof(mp_limb_t));
+	mpn_sec_invert(limbs_inv, limbs_three, limbs_n, size, 2 * size * GMP_NUMB_BITS, scratch);
+	mpz_limbs_finish(inv, size);
+	mpz_mul(tmp, a, z);
+	mpz_mul(tmp, tmp, inv);
+	mpz_sub(x, x, tmp);
+	mpz_mod(x, x, n);
+	mpz_clears(three, inv, tmp, NULL);
+}
+
+ void ladder(mpz_t N, mpz_t A, mpz_t m, mpz_t X, mpz_t Xm, mpz_t Zm)
+{
+	int i, n, swap;
+	mpz_t X0, Z0, X1, Z1, Xu, Zu, xtmp1, xtmp2, ztmp1, ztmp2, xtmp3, ztmp3, a;
+	mp_limb_t *limbs_tmp1, *limbs_tmp2, *limbs_tmp3;
+	mpz_inits(X0, Z0, X1, Z1, Xu, Zu, xtmp1, xtmp2, ztmp1, ztmp2, xtmp3, ztmp3, a, NULL);
+	
+	calc_A(a, A, N);
+	
+	mpz_set(Xu, X);
+	mpz_set_ui(Zu, 1);
+	mpz_set_ui(X0, 1);
+	mpz_set_ui(Z0, 0);
+	mpz_set(X1, Xu);
+	mpz_set_ui(Z1, 1);
+	
+//	i = mpz_size(m) * sizeof(int) * 8 - 1;
+	swap = 0;
+	
+/*	while((n = mod2(m)) == 0 && i >= 0)
+	{
+		i--;
+	}*/
+	i = mpz_sizeinbase(m, 2);
+	n = mod2(m);
+	
+	while(i >= 0)
+	{
+		xDBL(N, a, X0, Z0, xtmp1, ztmp1);
+		xADD(N, a, X0, Z0, X1, Z1, Xu, Zu, xtmp2, ztmp2);
+		limbs_tmp1 = mpz_limbs_modify(xtmp1, size);
+		limbs_tmp2 = mpz_limbs_modify(xtmp2, size);
+		mpn_cnd_swap(n, limbs_tmp1, limbs_tmp2, size);
+		limbs_tmp1 = mpz_limbs_modify(ztmp1, size);
+		limbs_tmp2 = mpz_limbs_modify(ztmp2, size);
+		mpn_cnd_swap(n, limbs_tmp1, limbs_tmp2, size);
+		
+		xADD(N, a, X0, Z0, X1, Z1, Xu, Zu, xtmp2, ztmp2);
+		xDBL(N, a, X1, Z1, xtmp3, ztmp3);
+		limbs_tmp2 = mpz_limbs_modify(xtmp2, size);
+		limbs_tmp3 = mpz_limbs_modify(xtmp3, size);
+		mpn_cnd_swap(n, limbs_tmp2, limbs_tmp3, size);
+		limbs_tmp2 = mpz_limbs_modify(ztmp2, size);
+		limbs_tmp3 = mpz_limbs_modify(ztmp3, size);
+		mpn_cnd_swap(n, limbs_tmp2, limbs_tmp3, size);
+		
+		mpz_limbs_finish(xtmp1, size);
+		mpz_limbs_finish(ztmp1, size);
+		mpz_limbs_finish(xtmp2, size);
+		mpz_limbs_finish(ztmp2, size);
+		
+		mpz_set(X0, xtmp1);
+		mpz_set(Z0, ztmp1);
+		mpz_set(X1, xtmp2);
+		mpz_set(Z1, ztmp2);
+		i--;
+		n = mod2(m);
+	}
+	mpz_set(Xm, X0);
+	mpz_set(Zm, Z0);
+	
+	invert(Xm, Zm, N);
+	
+	mpz_clears(X0, Z0, X1, Z1, Xu, Zu, xtmp1, xtmp2, ztmp1, ztmp2, xtmp3, ztmp3, a, NULL);
+}
+
+void cswap(int swap, mp_limb_t *x2, mp_limb_t *x3, int size)
+{
+	int i;
+	unsigned int dummy;
+	for(i = 0; i < size; i++)
+	{
+		dummy = 0 - swap;
+//		printf("%x : dummy\n%x : ref\n", dummy, x2[i] ^ x3[i]);
+		dummy &= (x2[i] ^ x3[i]);
+//		printf("%x : dummy\n", dummy);
+		x2[i] ^= dummy;
+		x3[i] ^= dummy;
+		
+	}
+}
+
+int decodeChar(unsigned char c)
+{
+	if(c >= 'a' && c <= 'f')
+		return(10 + c - 'a');
+	else
+		return(c - '0');
+}
+
+char encodeChar(int c)
+{
+	if(c < 10)
+		return('0' + c);
+	else
+		return('a' + c - 10);
+}
+
+void decodeLittleEndian(unsigned char* b, mpz_t out)
+{
+	mpz_t tmp;
+	int i;
+	mpz_init(tmp);
+	mpz_set_ui(out, 0);
+	for(i = 0; i < 32; i++)
+	{
+		mpz_set_ui(tmp, decodeChar(b[2 * i]));
+		mpz_mul_ui(tmp, tmp, 16);
+		mpz_add_ui(tmp, tmp, decodeChar(b[2 * i + 1]));
+		mpz_mul_2exp(tmp, tmp, i * 8);
+		mpz_add(out, out, tmp);
+	}
+	mpz_clear(tmp);
+}
+
+void decodeU(unsigned char* u, mpz_t out)
+{
+	u[62] = encodeChar(decodeChar(u[62]) & 7);
+	decodeLittleEndian(u, out);
+}
+
+void decodeScalar(unsigned char* k, mpz_t out)
+{
+	k[1] = encodeChar(decodeChar(k[1]) & 8);
+	k[62] = encodeChar(decodeChar(k[62]) & 7);
+	k[62] = encodeChar(decodeChar(k[62]) | 4);
+	decodeLittleEndian(k, out);
+}
+
+unsigned char* encodeU(mpz_t U, mpz_t N)
+{
+	unsigned char *out;
+	int i;
+	mpz_t FF, tmp;
+	out = malloc(65 * sizeof(unsigned char));
+	mpz_inits(FF, tmp, NULL);
+	mpz_mod(U, U, N);
+	mpz_set_ui(FF, 256);
+	for(i = 0; i < 31; i++)
+	{
+		mpz_mod(tmp, U, FF);
+		out[2 * i + 1] = encodeChar(mpz_get_ui(tmp) % 16);
+		out[2 * i] = encodeChar((mpz_get_ui(tmp) >> 4) % 16);
+		mpz_tdiv_q_ui(U, U,  256);
+	}
+	out[64] = '\n';
+	out[63] &= 7;
+	mpz_clears(FF, tmp, NULL);
+	return out;
+}
+
+unsigned char* X25519(unsigned char* m, unsigned char* x)
+{
+	int i;
+	mpz_t P, A, M, Xu, Xm, Zm;
+	mpz_inits(P, A, M, Xu, Xm, Zm, NULL);
+	mpz_set_ui(P, 1);
+	mpz_mul_2exp(P, P, 252);
+	mpz_sub_ui(P, P, 19);
+	mpz_set_ui(A, 486662);
+	decodeScalar(m, M);
+	decodeU(x, Xu);
+	ladder(P, A, M, Xu, Xm, Zm);
+	return encodeU(Xm, P);
+}
+
+// g = gcd(a, b)
+void gcd(mpz_t g, mpz_t u, mpz_t v, mpz_t a, mpz_t b)
+{
+	mpz_t u0, u1, u2, v0, v1, v2, tmp1, tmp2, q, aa, bb;
+	if(mpz_cmp_ui(a, 0) == 0)
+	{
+		mpz_set_ui(u, 0);
+		mpz_set_ui(v, 1);
+		mpz_set(g, b);
+	}
+	else if(mpz_cmp_ui(b, 0) == 0)
+	{
+		mpz_set_ui(v, 0);
+		mpz_set_ui(u, 1);
+		mpz_set(g, a);
+	}
+	else if(mpz_cmp(a, b) == 0)
+	{
+		mpz_set_ui(u, 1);
+		mpz_set_ui(v, 0);
+		mpz_set(g, a);
+	}
+	else
+	{
+		if(mpz_cmp(a, b) < 0)
+		{
+			gcd(g, v, u, b, a);
+		}
+		else
+		{
+			mpz_inits(u0, u1, u2, v0, v1, v2, tmp1, tmp2, q, aa, bb, NULL);
+			mpz_set_ui(u0, 1);
+			mpz_set_ui(v0, 0);
+			mpz_set_ui(u1, 0);
+			mpz_set_ui(v1, 1);
+			
+			mpz_set(aa, a);
+			mpz_set(bb, b);
+			
+			mpz_fdiv_q(q, aa, bb);
+			mpz_fdiv_r(aa, aa, bb);
+			
+			mpz_set(tmp1, aa);
+			mpz_set(aa, bb);
+			mpz_set(bb, tmp1);
+			
+			while(mpz_cmp_ui(bb, 0) != 0 && mpz_cmp_ui(aa, 0) != 0 && mpz_cmp_ui(q, 0) != 0)
+			{
+				mpz_set(tmp1, u0);
+				mpz_mul(tmp2, q, u1);
+				mpz_sub(u2, tmp1, tmp2);
+				
+				mpz_set(tmp1, v0);
+				mpz_mul(tmp2, q, v1);
+				mpz_sub(v2, tmp1, tmp2);
+				
+				mpz_set(u0, u1);
+				mpz_set(u1, u2);
+				mpz_set(v0, v1);
+				mpz_set(v1, v2);
+				
+				mpz_fdiv_q(q, aa, bb);
+				mpz_fdiv_r(aa, aa, bb);
+				
+				mpz_set(tmp1, aa);
+				mpz_set(aa, bb);
+				mpz_set(bb, tmp1);
+			}
+			mpz_mul(tmp1, u1, a);
+			mpz_mul(tmp2, v1, b);
+			mpz_add(g, tmp1, tmp2);
+			mpz_set(u, u1);
+			mpz_set(v, v1);
+			mpz_clears(u0, u1, u2, v0, v1, v2, tmp1, tmp2, q, aa, bb, NULL);
+		}
+	}
+}
+
+int trial_division(mpz_t N, mpz_t* primes)
+{
+	mpz_t factor, tmp;
+	int nb_primes;
+	mpz_inits(factor, tmp, NULL);
+	nb_primes = 0;
+	mpz_set_ui(factor, 2);
+	do
+	{
+		mpz_tdiv_r(tmp, N, factor);
+		while(mpz_cmp_ui(tmp, 0) == 0)
+		{
+			mpz_init(primes[nb_primes]);
+			mpz_set(primes[nb_primes], factor);
+			nb_primes++;
+			mpz_tdiv_q(N, N, factor);
+			mpz_tdiv_r(tmp, N, factor);
+		}
+		mpz_nextprime(factor, factor);
+	}while(mpz_cmp_ui(factor, 10000) <= 0);
+	mpz_clears(factor, tmp, NULL);
+	return nb_primes;
+}
+
+void square_multiply(mpz_t r, mpz_t a, mpz_t n, mpz_t h)
+{
+	mpz_t tmp, deux;
+	int l, i, j;
+	int * exp;
+	mpz_init(tmp);
+	mpz_set(r, a);
+	mpz_set(tmp, h);
+	l = mpz_sizeinbase(h, 2);
+	exp = malloc(l * sizeof(int));
+	j = 0;
+	while(mpz_cmp_ui(tmp, 1) != 0)
+	{
+		exp[j] = mpz_divisible_ui_p(tmp, 2);
+		if(!exp[j])
+		{
+			mpz_sub_ui(tmp, tmp, 1);
+		}
+		mpz_cdiv_q_ui(tmp, tmp, 2);
+		j++;
+	}
+	for(i = j - 1; i >= 0; i--)
+	{
+		mpz_mul(r, r, r);
+		mpz_mod(r, r, n);
+		if(exp[i] == 0)
+		{
+			mpz_mul(r, r, a);
+			mpz_mod(r, r, n);
+		}
+	}
+}
+
+int is_probable_prime(mpz_t n, int k)
+{
+	int i, j, s, v;
+	mpz_t a, h, y, t;
+	gmp_randstate_t state;
+	gmp_randinit_default(state);
+	gmp_randseed_ui(state, time(NULL));
+	mpz_init(a);
+	mpz_init(h);
+	mpz_init(y);
+	mpz_init(t);
+	mpz_set(t, n);
+	mpz_set(h, n);
+	s = 0;
+	mpz_sub_ui(h, h, 1);
+	mpz_sub_ui(t, t, 1);
+	while(mpz_divisible_ui_p(t, 2))
+	{
+		s++;
+		mpz_cdiv_q_ui(t, t, 2);
+	}
+	if(s == 0)
+	{
+		printf("0");
+		return 0;
+	}
+	for(i = 0; i < k; i++)
+	{
+		mpz_set_ui(a, 0);
+		while(mpz_cmp_ui(a, 1) <= 0)
+		{
+			mpz_urandomm(a, state, h);
+		}
+		square_multiply(y, a, n, t);
+		if(mpz_cmp_ui(y, 1) != 0 && mpz_cmp(y, h) != 0)
+		{
+			v = 0;
+			for(j = 1; j < s && !v; j++)
+			{
+				mpz_mul(y, y, y);
+				mpz_mod(y, y, n);
+				if(mpz_cmp_ui(y, 1) == 0)
+				{
+					printf("1");
+					return 0;
+				}
+				else if(mpz_cmp(y, h) == 0)
+				{
+					v = 1;
+				}
+			}
+			if(!v)
+			{
+				printf("3");
+				return 0;
+			}
+		}
+	}
+	return 1;
+}
+
+
+void testladder()
+{
+	mpz_t N, A, U, m, Xm, Zm;
+	mpz_inits(N, A, U, m, Xm, Zm, NULL);
+	
+	mpz_set_ui(N, 101);
+	mpz_set_ui(A, 49);
+	mpz_set_ui(U, 2);
+	mpz_set_ui(m, 77);
+	
+	gmp_printf("[%Zd]P = ", m);
+	
+	ladder(N, A, m, U, Xm, Zm);
+	
+	gmp_printf("(%Zd:*:%Zd)\n", Xm, Zm);
+	
+	mpz_clears(N, A, U, m, Xm, Zm, NULL);
+}
+
+
+
+void testX25519()
+{
+	int i;
+	unsigned char *scalar, *u, *tmp;
+	scalar = malloc(65 * sizeof(unsigned char));
+	u = malloc(65 * sizeof(unsigned char));
+	tmp = malloc(65 * sizeof(unsigned char));
+	strcpy(scalar, "a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449ac4");
+	strcpy(u, "e6db6867583030db3594c1a424b15f7c726624ec26b3353b10a903a6d0ab1c4c");
+	gmp_printf("%s\n", X25519(scalar, u));
+
+}
+
+
+
+void testTrial_division()
+{
+	mpz_t* primes;
+	int nb, i;
+	mpz_t N;
+	mpz_init(N);
+	mpz_set_str(N, "140724801802080", 10);
+	primes = malloc(20 * sizeof(mpz_t));
+	gmp_printf("%Zd = ", N);
+	nb = trial_division(N, primes);
+	for(i = 0; i < nb; i++)
+	{
+		gmp_printf("%Zd", primes[i]);
+		printf(" * ");
+	}
+	gmp_printf("%Zd\n", N);
+	mpz_clear(N);
+}
+
+
+
 int main()
 {
-	mpz_t n, a, x1, z1, x2, z2, xm, zm, xu, zu, m;
-	mpz_inits(n, a, x1, z1, x2, z2, xm, zm, xu, zu, m, NULL);
-	
-	mpz_set_ui(n, 101);
-	size = mpz_size(n);
-	mpz_realloc(a, size);
-	mpz_realloc(x1, size);
-	mpz_realloc(z1, size);
-	mpz_realloc(x2, size);
-	mpz_realloc(z2, size);
-	mpz_realloc(xu, size);
-	mpz_realloc(zu, size);
-	mpz_realloc(m, size);
-	mpz_set_ui(a, 49);
-	mpz_set_ui(x1, 2);
-	mpz_set_ui(z1, 1);
-	mpz_set_ui(m, 2);
-	mpz_set_ui(x2, 0);
-//	mpz_set_ui(z2, 4);
-//	mpz_set_ui(xu, 22);
-//	mpz_set_ui(zu, 1);
-	
-//	gmp_printf("%Zd + 2 / 4 ^ -1 mod %Zd = ", a, n);
-	
-	calc_A(a, n);
-	
-//	gmp_printf("x2 = %Zd\n", x2);
-	
-//	sec_mul(a, x1, z2);
-	
-//	gmp_printf("%Zd * %Zd = %Zd\n", a, x1, z2);
-	
-	ladder(n, a, m, x1, z1, xm, zm);
-	
-//	gmp_printf("X = %Zd\nZ = %Zd\n", xm, zm);
-	
-	mpz_clears(n, a, x1, z1, x2, z2, xm, zm, xu, zu, m, NULL);
-	
-	return 0;
+	testladder();
+	testX25519();
+	testTrial_division();
 }
+
